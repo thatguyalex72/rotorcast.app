@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<title>ROTORCAST — Drone Flight Planner</title>
+
+<!-- PWA -->
+<link rel="manifest" href="/manifest.json"/>
+<meta name="theme-color" content="#f5a623"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="ROTORCAST"/>
+<link rel="apple-touch-icon" href="/icons/icon-192.png"/>
+
+<!-- SEO -->
+<meta name="description" content="Real-time wind and weather conditions for drone pilots. Check if it's safe to fly."/>
+
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0b0d;
+    --surface: #111318;
+    --surface2: #181b22;
+    --border: #252932;
+    --border2: #2e333d;
+    --amber: #f5a623;
+    --green: #39d353;
+    --green-dim: #39d35322;
+    --red: #ff4d4d;
+    --red-dim: #ff4d4d22;
+    --yellow: #f5d63c;
+    --yellow-dim: #f5d63c22;
+    --text: #c8d0dc;
+    --text-dim: #5a6070;
+    --text-bright: #eef2f8;
+    --mono: 'Share Tech Mono', monospace;
+    --sans: 'Barlow', sans-serif;
+    --cond: 'Barlow Condensed', sans-serif;
+    --safe-top: env(safe-area-inset-top);
+    --safe-bottom: env(safe-area-inset-bottom);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at 20% 0%, #1a2535 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 100%, #0d1a0f 0%, transparent 60%);
+    pointer-events: none; z-index: 0;
+  }
+
+  /* HEADER */
+  .header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,11,13,0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 16px;
+    padding-top: var(--safe-top);
+    display: flex; align-items: center; justify-content: space-between;
+    height: calc(56px + var(--safe-top));
+  }
+  .logo {
+    font-family: var(--cond);
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: 4px;
+    color: var(--amber);
+    text-transform: uppercase;
+  }
+  .logo span { color: var(--text-dim); font-weight: 300; }
+  .header-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 4px 8px;
+    border-radius: 2px;
+    letter-spacing: 1px;
+  }
+
+  /* MAIN */
+  .main {
+    position: relative; z-index: 1;
+    padding: 16px;
+    padding-bottom: calc(24px + var(--safe-bottom));
+    max-width: 600px; margin: 0 auto;
+  }
+
+  /* CARDS */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .card-title {
+    font-family: var(--cond);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .card-body { padding: 14px; }
+
+  /* SEARCH */
+  .search-row { display: flex; gap: 8px; }
+  .search-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 3px;
+    color: var(--text-bright);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+  .search-input:focus { border-color: var(--amber); }
+  .search-input::placeholder { color: var(--text-dim); }
+  .btn {
+    background: var(--amber);
+    color: #0a0b0d;
+    border: none;
+    border-radius: 3px;
+    font-family: var(--cond);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 2px;
+    padding: 10px 14px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+    -webkit-appearance: none;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn:active { opacity: 0.7; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border2);
+    color: var(--text-dim);
+  }
+  .btn-ghost:hover { border-color: var(--text-dim); color: var(--text); opacity: 1; }
+  .btn-sm { padding: 6px 10px; font-size: 10px; }
+
+  /* STATUS DOT */
+  .status-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+  .dot-green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot-yellow { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); animation: none; }
+  .dot-red { background: var(--red); box-shadow: 0 0 6px var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* WIND METER */
+  .wind-display {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .wind-stat {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 12px;
+    text-align: center;
+  }
+  .wind-stat-label {
+    font-family: var(--cond);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .wind-stat-value {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 400;
+    line-height: 1;
+  }
+  .wind-stat-unit {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 3px;
+  }
+
+  /* WIND BAR */
+  .wind-bar-wrap { margin-bottom: 14px; }
+  .wind-bar-label {
+    display: flex; justify-content: space-between;
+    font-family: var(--mono); font-size: 10px;
+    color: var(--text-dim); margin-bottom: 5px;
+  }
+  .wind-bar-track {
+    height: 8px; background: var(--surface2);
+    border-radius: 4px; overflow: hidden;
+    border: 1px solid var(--border);
+    position: relative;
+  }
+  .wind-bar-fill {
+    height: 100%; border-radius: 4px;
+    transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+  }
+  .wind-bar-caution {
+    position: absolute; top: 0; bottom: 0;
+    background: rgba(245,214,60,0.15);
+    border-left: 1px dashed var(--yellow);
+  }
+
+  /* WEATHER GRID */
+  .weather-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .weather-tile {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 10px 8px;
+    text-align: center;
+  }
+  .weather-tile-label {
+    font-family: var(--cond);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+  .weather-tile-value {
+    font-family: var(--mono);
+    font-size: 16px;
+    color: var(--text-bright);
+  }
+  .weather-tile-sub {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  /* HOURLY */
+  .hourly-scroll {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border2) transparent;
+    -webkit-overflow-scrolling: touch;
+  }
+  .hourly-item {
+    flex-shrink: 0;
+    width: 70px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 10px 6px;
+    text-align: center;
+  }
+  .hourly-time {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  .hourly-wind {
+    font-family: var(--mono);
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+  .hourly-gust {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  .hourly-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin: 6px auto 0;
+  }
+
+  /* FLIGHT STATUS BANNER */
+  .flight-status {
+    border-radius: 4px;
+    padding: 14px;
+    margin-bottom: 12px;
+    border: 1px solid;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .flight-status-green { background: var(--green-dim); border-color: var(--green); }
+  .flight-status-yellow { background: var(--yellow-dim); border-color: var(--yellow); }
+  .flight-status-red { background: var(--red-dim); border-color: var(--red); }
+  .flight-status-icon { font-size: 24px; flex-shrink: 0; }
+  .flight-status-title {
+    font-family: var(--cond);
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .flight-status-msg { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+  /* DRONE SELECTOR */
+  .drone-list { display: flex; flex-direction: column; gap: 6px; }
+  .drone-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 10px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .drone-item.selected { border-color: var(--amber); }
+  .drone-name { font-family: var(--cond); font-weight: 600; font-size: 14px; color: var(--text-bright); }
+  .drone-spec { font-family: var(--mono); font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+  .drone-wind-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 3px 7px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  /* CUSTOM DRONE FORM */
+  .form-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .form-group { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .form-label { font-family: var(--cond); font-size: 10px; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; }
+  .form-input {
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 3px; color: var(--text-bright);
+    font-family: var(--mono); font-size: 13px;
+    padding: 8px 10px; outline: none;
+    transition: border-color 0.2s; width: 100%;
+    -webkit-appearance: none;
+  }
+  .form-input:focus { border-color: var(--amber); }
+
+  /* FAA BANNER */
+  .faa-banner {
+    background: linear-gradient(135deg, #0d1520, #0d1a0f);
+    border: 1px solid #1e3a28;
+    border-radius: 4px;
+    padding: 12px 14px;
+    display: flex; align-items: flex-start; gap: 10px;
+    margin-bottom: 10px;
+  }
+  .faa-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .faa-text { font-size: 12px; line-height: 1.5; }
+  .faa-link {
+    color: var(--green);
+    text-decoration: none;
+    font-family: var(--mono);
+    font-size: 11px;
+    display: block;
+    margin-top: 5px;
+  }
+  .faa-link:hover { text-decoration: underline; }
+
+  /* TABS */
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .tab {
+    flex: 1; padding: 10px; text-align: center;
+    font-family: var(--cond); font-size: 11px;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--text-dim); cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .tab.active { color: var(--amber); border-bottom-color: var(--amber); }
+
+  /* INSTALL BANNER */
+  .install-banner {
+    background: linear-gradient(135deg, #1a1500, #0f1a00);
+    border: 1px solid #3a3000;
+    border-radius: 4px;
+    padding: 12px 14px;
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 12px;
+    cursor: pointer;
+  }
+  .install-banner-text { flex: 1; font-size: 12px; line-height: 1.5; }
+  .install-banner-title { font-family: var(--cond); font-weight: 700; font-size: 13px; letter-spacing: 1px; color: var(--amber); }
+
+  /* MISC */
+  .divider { height: 1px; background: var(--border); margin: 10px 0; }
+  .mono { font-family: var(--mono); }
+  .text-dim { color: var(--text-dim); }
+  .text-amber { color: var(--amber); }
+  .text-green { color: var(--green); }
+  .text-red { color: var(--red); }
+  .text-yellow { color: var(--yellow); }
+  .text-sm { font-size: 12px; }
+  .flex { display: flex; }
+  .items-center { align-items: center; }
+  .gap-2 { gap: 8px; }
+  .mt-2 { margin-top: 8px; }
+  .section-note {
+    font-size: 11px; color: var(--text-dim);
+    font-family: var(--mono);
+    margin-bottom: 10px;
+    padding: 6px 10px;
+    background: var(--surface2);
+    border-left: 2px solid var(--border2);
+  }
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--amber);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle; margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback } = React;
+
+// ─── DRONE DATABASE ───────────────────────────────────────────────────────────
+const DRONE_DB = [
+  { id:'mini4pro',   name:'DJI Mini 4 Pro',       brand:'DJI',     maxWind:10.7, weight:'249g',   category:'Beginner/Travel' },
+  { id:'mini3pro',   name:'DJI Mini 3 Pro',        brand:'DJI',     maxWind:10.7, weight:'249g',   category:'Beginner/Travel' },
+  { id:'mini2se',    name:'DJI Mini 2 SE',          brand:'DJI',     maxWind:8.5,  weight:'249g',   category:'Entry Level' },
+  { id:'air3',       name:'DJI Air 3',              brand:'DJI',     maxWind:12,   weight:'720g',   category:'Consumer Pro' },
+  { id:'air2s',      name:'DJI Air 2S',             brand:'DJI',     maxWind:11,   weight:'595g',   category:'Consumer Pro' },
+  { id:'mavic3pro',  name:'DJI Mavic 3 Pro',        brand:'DJI',     maxWind:12,   weight:'958g',   category:'Professional' },
+  { id:'mavic3c',    name:'DJI Mavic 3 Classic',    brand:'DJI',     maxWind:12,   weight:'895g',   category:'Professional' },
+  { id:'fpvcombo',   name:'DJI FPV Combo',          brand:'DJI',     maxWind:14,   weight:'795g',   category:'FPV' },
+  { id:'avata2',     name:'DJI Avata 2',            brand:'DJI',     maxWind:12,   weight:'377g',   category:'FPV' },
+  { id:'m30t',       name:'DJI Matrice 30T',        brand:'DJI',     maxWind:15,   weight:'3770g',  category:'Enterprise' },
+  { id:'autelevo',   name:'Autel EVO Lite+',        brand:'Autel',   maxWind:12,   weight:'835g',   category:'Consumer Pro' },
+  { id:'autelevo2',  name:'Autel EVO II Pro',       brand:'Autel',   maxWind:12,   weight:'1191g',  category:'Professional' },
+  { id:'autelnano',  name:'Autel EVO Nano+',        brand:'Autel',   maxWind:8,    weight:'249g',   category:'Entry Level' },
+  { id:'skydio2p',   name:'Skydio 2+',              brand:'Skydio',  maxWind:12.9, weight:'800g',   category:'Consumer Pro' },
+  { id:'skydioX2',   name:'Skydio X2',              brand:'Skydio',  maxWind:16,   weight:'1400g',  category:'Enterprise' },
+  { id:'parrotAnafi',name:'Parrot Anafi USA',       brand:'Parrot',  maxWind:16,   weight:'500g',   category:'Professional' },
+  { id:'hubsanevo',  name:'Hubsan Zino Mini Pro',   brand:'Hubsan',  maxWind:8,    weight:'249g',   category:'Entry Level' },
+  { id:'potensic',   name:'Potensic Atom SE',       brand:'Potensic',maxWind:8,    weight:'249g',   category:'Entry Level' },
+];
+
+function windColor(pct) {
+  if (pct < 0.65) return 'var(--green)';
+  if (pct < 0.85) return 'var(--yellow)';
+  return 'var(--red)';
+}
+function windStatus(pct) {
+  if (pct < 0.65) return { label:'GO FOR FLIGHT', cls:'flight-status-green', icon:'✈', msg:'Wind conditions are within safe operating range.' };
+  if (pct < 0.85) return { label:'CAUTION', cls:'flight-status-yellow', icon:'⚠', msg:"Approaching wind limit. Fly with care, stay close, and monitor conditions." };
+  return { label:'NO-FLY', cls:'flight-status-red', icon:'⛔', msg:"Wind speed exceeds or is near drone's maximum resistance. Do not fly." };
+}
+function windDesc(mph) {
+  if (mph < 1) return 'Calm';
+  if (mph < 4) return 'Light Air';
+  if (mph < 8) return 'Light Breeze';
+  if (mph < 13) return 'Gentle Breeze';
+  if (mph < 19) return 'Moderate Breeze';
+  if (mph < 25) return 'Fresh Breeze';
+  if (mph < 32) return 'Strong Breeze';
+  return 'Near Gale+';
+}
+function wmoDesc(code) {
+  const m = {0:'Clear',1:'Mainly Clear',2:'Partly Cloudy',3:'Overcast',
+    45:'Foggy',48:'Icy Fog',51:'Light Drizzle',53:'Drizzle',55:'Heavy Drizzle',
+    61:'Light Rain',63:'Rain',65:'Heavy Rain',71:'Light Snow',73:'Snow',80:'Showers',
+    81:'Heavy Showers',82:'Violent Showers',95:'Thunderstorm',96:'Hail Storm'};
+  return m[code] || 'Unknown';
+}
+function wmoIcon(code) {
+  if (code === 0) return '☀️';
+  if (code <= 2) return '🌤️';
+  if (code === 3) return '☁️';
+  if (code <= 48) return '🌫️';
+  if (code <= 67) return '🌧️';
+  if (code <= 77) return '❄️';
+  if (code <= 82) return '🌦️';
+  return '⛈️';
+}
+function degToCompass(d) {
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(d/22.5) % 16];
+}
+
+async function geocode(query) {
+  const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`);
+  const d = await r.json();
+  if (!d.results?.length) throw new Error('Location not found');
+  const loc = d.results[0];
+  return { lat: loc.latitude, lon: loc.longitude, name: `${loc.name}, ${loc.country}` };
+}
+
+async function fetchWeather(lat, lon) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m&hourly=temperature_2m,precipitation_probability,weather_code,wind_speed_10m,wind_gusts_10m&wind_speed_unit=mph&temperature_unit=fahrenheit&timezone=auto&forecast_days=2`;
+  const r = await fetch(url);
+  return r.json();
+}
+
+// ─── APP ─────────────────────────────────────────────────────────────────────
+function App() {
+  const [tab, setTab] = useState('weather');
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [locationName, setLocationName] = useState(null);
+  const [weather, setWeather] = useState(null);
+  const [selectedDrone, setSelectedDrone] = useState(DRONE_DB[0]);
+  const [customDrones, setCustomDrones] = useState([]);
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customName, setCustomName] = useState('');
+  const [customWind, setCustomWind] = useState('');
+  const [customWeight, setCustomWeight] = useState('');
+  const [droneFilter, setDroneFilter] = useState('All');
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [showInstall, setShowInstall] = useState(false);
+
+  // PWA install prompt
+  useEffect(() => {
+    const handler = e => { e.preventDefault(); setInstallPrompt(e); setShowInstall(true); };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  // Register service worker
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(console.warn);
+    }
+  }, []);
+
+  const allDrones = [...DRONE_DB, ...customDrones];
+  const brands = ['All', ...Array.from(new Set(allDrones.map(d => d.brand)))];
+  const filteredDrones = droneFilter === 'All' ? allDrones : allDrones.filter(d => d.brand === droneFilter);
+
+  async function search() {
+    if (!query.trim()) return;
+    setLoading(true); setError(null); setWeather(null);
+    try {
+      let lat, lon, name;
+      const coordMatch = query.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
+      if (coordMatch) {
+        lat = parseFloat(coordMatch[1]); lon = parseFloat(coordMatch[2]);
+        name = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+      } else {
+        const geo = await geocode(query);
+        lat = geo.lat; lon = geo.lon; name = geo.name;
+      }
+      setLocationName(name);
+      const w = await fetchWeather(lat, lon);
+      setWeather(w);
+      setTab('weather');
+    } catch(e) { setError(e.message); }
+    finally { setLoading(false); }
+  }
+
+  async function useMyLocation() {
+    if (!navigator.geolocation) { setError('Geolocation not supported'); return; }
+    setLoading(true); setError(null); setWeather(null);
+    navigator.geolocation.getCurrentPosition(async pos => {
+      try {
+        const { latitude: lat, longitude: lon } = pos.coords;
+        setLocationName(`${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+        const w = await fetchWeather(lat, lon);
+        setWeather(w);
+        setTab('weather');
+      } catch(e) { setError(e.message); }
+      finally { setLoading(false); }
+    }, () => { setError('Location access denied'); setLoading(false); });
+  }
+
+  async function triggerInstall() {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') setShowInstall(false);
+  }
+
+  function addCustomDrone() {
+    if (!customName || !customWind) return;
+    const d = { id:`custom_${Date.now()}`, name:customName, brand:'Custom', maxWind:parseFloat(customWind), weight:customWeight||'N/A', category:'Custom' };
+    setCustomDrones(prev => [...prev, d]);
+    setSelectedDrone(d);
+    setCustomName(''); setCustomWind(''); setCustomWeight('');
+    setShowCustomForm(false);
+  }
+
+  const cur = weather?.current;
+  const hourly = weather?.hourly;
+  const windMph = cur?.wind_speed_10m ?? 0;
+  const gustMph = cur?.wind_gusts_10m ?? 0;
+  const worstWind = Math.max(windMph, gustMph);
+  const pct = selectedDrone ? worstWind / selectedDrone.maxWind : 0;
+  const status = selectedDrone ? windStatus(pct) : null;
+
+  let hourlySlots = [];
+  if (hourly) {
+    const now = new Date();
+    const currentHour = now.toISOString().slice(0,13);
+    let startIdx = hourly.time.findIndex(t => t.startsWith(currentHour));
+    if (startIdx < 0) startIdx = 0;
+    hourlySlots = Array.from({length:24}, (_,i) => {
+      const idx = startIdx + i;
+      if (idx >= hourly.time.length) return null;
+      const t = new Date(hourly.time[idx] + ':00');
+      const w = hourly.wind_speed_10m[idx];
+      const g = hourly.wind_gusts_10m[idx];
+      const worst = Math.max(w, g);
+      const p = selectedDrone ? worst / selectedDrone.maxWind : 0;
+      return { time: t.toLocaleTimeString([],{hour:'numeric',hour12:true}), wind:w?.toFixed(0), gust:g?.toFixed(0), code:hourly.weather_code[idx], precip:hourly.precipitation_probability[idx], pct:p };
+    }).filter(Boolean);
+  }
+
+  return (
+    <div>
+      <header className="header">
+        <div className="logo">Rotor<span>cast</span></div>
+        <div className="header-badge">DRONE WX</div>
+      </header>
+
+      <div className="main">
+
+        {/* PWA INSTALL BANNER */}
+        {showInstall && (
+          <div className="install-banner" onClick={triggerInstall}>
+            <div style={{fontSize:24}}>📲</div>
+            <div className="install-banner-text">
+              <div className="install-banner-title">Install ROTORCAST</div>
+              <div style={{color:'var(--text-dim)',fontSize:11,marginTop:2}}>Add to home screen for quick pre-flight checks</div>
+            </div>
+            <button className="btn btn-sm" onClick={triggerInstall}>Install</button>
+          </div>
+        )}
+
+        {/* SEARCH */}
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">📍 Location</span>
+            {locationName && <span className="mono text-dim" style={{fontSize:10}}>{locationName}</span>}
+          </div>
+          <div className="card-body">
+            <div className="search-row">
+              <input
+                className="search-input"
+                placeholder="City, address, or lat,lon…"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && search()}
+              />
+              <button className="btn" onClick={search} disabled={loading || !query.trim()}>
+                {loading ? <span className="spinner"/> : 'GET WX'}
+              </button>
+            </div>
+            <button className="btn btn-ghost btn-sm mt-2" onClick={useMyLocation} disabled={loading}>
+              ◎ Use My Location
+            </button>
+            {error && <div className="text-red mono text-sm mt-2">⚠ {error}</div>}
+          </div>
+        </div>
+
+        {/* ACTIVE DRONE */}
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">🚁 Active Drone</span>
+            <span className="mono text-amber" style={{fontSize:11}}>{selectedDrone.name}</span>
+          </div>
+          <div className="card-body">
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div>
+                <div className="mono text-sm">{selectedDrone.brand} · {selectedDrone.category}</div>
+                <div className="mono text-dim" style={{fontSize:11}}>Max Wind: <span className="text-amber">{selectedDrone.maxWind} mph</span> · {selectedDrone.weight}</div>
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setTab('drones')}>Change</button>
+            </div>
+          </div>
+        </div>
+
+        {/* MAIN CONTENT TABS */}
+        {weather && (
+          <div className="card" style={{padding:0}}>
+            <div className="tab-bar">
+              <div className={`tab ${tab==='weather'?'active':''}`} onClick={()=>setTab('weather')}>Conditions</div>
+              <div className={`tab ${tab==='hourly'?'active':''}`} onClick={()=>setTab('hourly')}>Hourly</div>
+              <div className={`tab ${tab==='drones'?'active':''}`} onClick={()=>setTab('drones')}>Drones</div>
+              <div className={`tab ${tab==='faa'?'active':''}`} onClick={()=>setTab('faa')}>Safety</div>
+            </div>
+
+            {tab === 'weather' && (
+              <div className="card-body">
+                <div className={`flight-status ${status.cls}`} style={{marginBottom:12}}>
+                  <div className="flight-status-icon">{status.icon}</div>
+                  <div>
+                    <div className="flight-status-title" style={{color:pct<0.65?'var(--green)':pct<0.85?'var(--yellow)':'var(--red)'}}>
+                      {status.label}
+                    </div>
+                    <div className="flight-status-msg">{status.msg}</div>
+                  </div>
+                </div>
+
+                <div className="wind-display">
+                  <div className="wind-stat">
+                    <div className="wind-stat-label">Sustained</div>
+                    <div className="wind-stat-value" style={{color:windColor(windMph/selectedDrone.maxWind)}}>{windMph.toFixed(1)}</div>
+                    <div className="wind-stat-unit">mph · {degToCompass(cur.wind_direction_10m)}</div>
+                  </div>
+                  <div className="wind-stat">
+                    <div className="wind-stat-label">Gusts</div>
+                    <div className="wind-stat-value" style={{color:windColor(gustMph/selectedDrone.maxWind)}}>{gustMph.toFixed(1)}</div>
+                    <div className="wind-stat-unit">mph peak</div>
+                  </div>
+                </div>
+
+                <div className="wind-bar-wrap">
+                  <div className="wind-bar-label">
+                    <span>{windDesc(worstWind)}</span>
+                    <span>{worstWind.toFixed(1)} / {selectedDrone.maxWind} mph max</span>
+                  </div>
+                  <div className="wind-bar-track">
+                    <div className="wind-bar-fill" style={{
+                      width:`${Math.min(pct*100,100)}%`,
+                      background: pct<0.65
+                        ? 'linear-gradient(90deg, var(--green), #2db844)'
+                        : pct<0.85
+                        ? 'linear-gradient(90deg, var(--green), var(--yellow))'
+                        : 'linear-gradient(90deg, var(--green), var(--yellow), var(--red))'
+                    }}/>
+                    <div className="wind-bar-caution" style={{left:'65%',right:'15%'}}/>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',marginTop:3}}>
+                    <span className="mono text-dim" style={{fontSize:9}}>0</span>
+                    <span className="mono text-yellow" style={{fontSize:9}}>CAUTION {(selectedDrone.maxWind*0.65).toFixed(0)}mph</span>
+                    <span className="mono text-red" style={{fontSize:9}}>LIMIT {selectedDrone.maxWind}mph</span>
+                  </div>
+                </div>
+
+                <div className="divider"/>
+
+                <div className="weather-grid">
+                  <div className="weather-tile">
+                    <div className="weather-tile-label">Temp</div>
+                    <div className="weather-tile-value">{cur.temperature_2m.toFixed(0)}°</div>
+                    <div className="weather-tile-sub">°F</div>
+                  </div>
+                  <div className="weather-tile">
+                    <div className="weather-tile-label">Humidity</div>
+                    <div className="weather-tile-value">{cur.relative_humidity_2m}%</div>
+                    <div className="weather-tile-sub">RH</div>
+                  </div>
+                  <div className="weather-tile">
+                    <div className="weather-tile-label">Precip</div>
+                    <div className="weather-tile-value" style={{color:cur.precipitation>0?'var(--red)':'inherit'}}>{cur.precipitation>0?cur.precipitation.toFixed(1):'0'}</div>
+                    <div className="weather-tile-sub">mm/hr</div>
+                  </div>
+                  <div className="weather-tile" style={{gridColumn:'1/3'}}>
+                    <div className="weather-tile-label">Conditions</div>
+                    <div className="weather-tile-value" style={{fontSize:13}}>{wmoIcon(cur.weather_code)} {wmoDesc(cur.weather_code)}</div>
+                  </div>
+                  <div className="weather-tile">
+                    <div className="weather-tile-label">Direction</div>
+                    <div className="weather-tile-value">{degToCompass(cur.wind_direction_10m)}</div>
+                    <div className="weather-tile-sub">{cur.wind_direction_10m}°</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {tab === 'hourly' && (
+              <div className="card-body">
+                <div className="section-note">↔ Scroll · Dot = flight status for {selectedDrone.name}</div>
+                <div className="hourly-scroll">
+                  {hourlySlots.map((h,i) => (
+                    <div className="hourly-item" key={i}>
+                      <div className="hourly-time">{h.time}</div>
+                      <div className="hourly-wind" style={{color:windColor(h.pct)}}>{h.wind}<span className="mono text-dim" style={{fontSize:9}}> mph</span></div>
+                      <div className="hourly-gust">↑{h.gust} gust</div>
+                      <div style={{fontSize:14,marginTop:3}}>{wmoIcon(h.code)}</div>
+                      <div style={{fontSize:10,color:'var(--text-dim)'}}>{h.precip}%💧</div>
+                      <div className="hourly-dot" style={{background:windColor(h.pct),boxShadow:`0 0 4px ${windColor(h.pct)}`}}/>
+                    </div>
+                  ))}
+                </div>
+                <div style={{display:'flex',gap:12,marginTop:12,justifyContent:'center'}}>
+                  {[['var(--green)','Go'],['var(--yellow)','Caution'],['var(--red)','No-Fly']].map(([c,l]) => (
+                    <div key={l} style={{display:'flex',alignItems:'center',gap:5,fontSize:10,color:'var(--text-dim)',fontFamily:'var(--mono)'}}>
+                      <div style={{width:8,height:8,borderRadius:'50%',background:c}}/>
+                      {l}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {tab === 'drones' && (
+              <div className="card-body">
+                <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}}>
+                  {brands.map(b => (
+                    <button key={b} className={`btn btn-sm ${droneFilter===b?'':'btn-ghost'}`} onClick={()=>setDroneFilter(b)} style={{fontSize:9,padding:'4px 8px'}}>{b}</button>
+                  ))}
+                </div>
+                <div className="drone-list" style={{maxHeight:300,overflowY:'auto'}}>
+                  {filteredDrones.map(d => (
+                    <div key={d.id} className={`drone-item ${selectedDrone.id===d.id?'selected':''}`} onClick={()=>setSelectedDrone(d)}>
+                      <div>
+                        <div className="drone-name">{d.name}</div>
+                        <div className="drone-spec">{d.brand} · {d.category} · {d.weight}</div>
+                      </div>
+                      <div className="drone-wind-badge" style={{color:selectedDrone.id===d.id?'var(--amber)':'var(--text-dim)'}}>
+                        ↑{d.maxWind} mph
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="divider"/>
+                {!showCustomForm ? (
+                  <button className="btn btn-ghost btn-sm" onClick={()=>setShowCustomForm(true)}>+ Add Custom Drone</button>
+                ) : (
+                  <div>
+                    <div className="section-note" style={{marginBottom:10}}>Enter your drone's published max wind resistance</div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label className="form-label">Drone Name</label>
+                        <input className="form-input" placeholder="e.g. My FPV Quad" value={customName} onChange={e=>setCustomName(e.target.value)}/>
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label className="form-label">Max Wind (mph)</label>
+                        <input className="form-input" type="number" placeholder="e.g. 20" value={customWind} onChange={e=>setCustomWind(e.target.value)}/>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Weight (optional)</label>
+                        <input className="form-input" placeholder="e.g. 500g" value={customWeight} onChange={e=>setCustomWeight(e.target.value)}/>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button className="btn btn-sm" onClick={addCustomDrone} disabled={!customName||!customWind}>Save Drone</button>
+                      <button className="btn btn-ghost btn-sm" onClick={()=>setShowCustomForm(false)}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {tab === 'faa' && (
+              <div className="card-body">
+                <div className="faa-banner">
+                  <div className="faa-icon">🛡️</div>
+                  <div className="faa-text">
+                    <strong style={{color:'var(--green)'}}>Always check airspace before flying.</strong><br/>
+                    Weather is only one factor. Check for TFRs, controlled airspace, and local restrictions.
+                    <a className="faa-link" href="https://b4ufly.aloft.ai/" target="_blank">→ B4UFLY App (aloft.ai)</a>
+                    <a className="faa-link" href="https://www.faa.gov/uas" target="_blank">→ FAA UAS Information</a>
+                    <a className="faa-link" href="https://www.faa.gov/uas/getting_started/fly_for_fun/becoming_an_operator" target="_blank">→ FAA TRUST Certification</a>
+                  </div>
+                </div>
+                <div className="card" style={{marginBottom:0}}>
+                  <div className="card-header"><span className="card-title">Pre-Flight Checklist</span></div>
+                  <div className="card-body">
+                    {[
+                      ['Check B4UFLY / airspace map','Always'],
+                      ['Verify no active TFRs in area','Always'],
+                      ['Wind below drone max resistance','Required'],
+                      ['No active precipitation','Required'],
+                      ['Visibility > 3 statute miles','FAA Rule'],
+                      ['Fly below 400ft AGL','FAA Rule'],
+                      ['Keep drone in visual line of sight','FAA Rule'],
+                      ['Register drone if over 0.55 lbs','FAA Rule'],
+                      ['Yield to manned aircraft','Always'],
+                    ].map(([item,tag]) => (
+                      <div key={item} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid var(--border)'}}>
+                        <span style={{fontSize:12}}>{item}</span>
+                        <span className="mono" style={{fontSize:9,color:'var(--text-dim)',background:'var(--surface2)',padding:'2px 6px',borderRadius:2,border:'1px solid var(--border)'}}>{tag}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* EMPTY STATE */}
+        {!weather && !loading && (
+          <div style={{textAlign:'center',padding:'40px 20px',color:'var(--text-dim)'}}>
+            <div style={{fontSize:48,marginBottom:12}}>🌬️</div>
+            <div style={{fontFamily:'var(--cond)',fontSize:16,letterSpacing:3,textTransform:'uppercase',marginBottom:6}}>No Location Set</div>
+            <div style={{fontSize:12,fontFamily:'var(--mono)'}}>Search a location or use device GPS<br/>to get flight conditions</div>
+          </div>
+        )}
+
+        {/* FOOTER */}
+        <div style={{textAlign:'center',padding:'8px 0 20px',fontFamily:'var(--mono)',fontSize:10,color:'var(--text-dim)',lineHeight:1.8}}>
+          Weather via <span className="text-amber">Open-Meteo</span> · Free · No API key<br/>
+          Wind limits from manufacturer specs — verify with your manual<br/>
+          Not a substitute for official FAA guidance
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+
+<!-- Service Worker Registration -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW registration failed:', e));
+    });
+  }
+</script>
+</body>
+</html>
